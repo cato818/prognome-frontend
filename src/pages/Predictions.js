@@ -24,16 +24,28 @@ function Predictions() {
     setPrediction(null);
 
     try {
+      console.log('Making API request to:', `${process.env.REACT_APP_API_URL}/predict`);
+      
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/predict`, {
         symbol: symbol.toUpperCase()
       });
+      
+      console.log('API Response:', response.data);
       setPrediction(response.data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'An error occurred while making the prediction');
+      console.error('API Error:', err);
+      setError(
+        err.response?.data?.detail || 
+        err.message || 
+        'An error occurred while making the prediction'
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  // Debug: Mostrar las variables de entorno (sin mostrar valores sensibles)
+  console.log('API URL configured:', process.env.REACT_APP_API_URL ? 'Yes' : 'No');
 
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
@@ -50,6 +62,7 @@ function Predictions() {
             onChange={(e) => setSymbol(e.target.value)}
             margin="normal"
             required
+            disabled={loading}
           />
           <Box sx={{ mt: 2 }}>
             <Button
@@ -57,6 +70,7 @@ function Predictions() {
               variant="contained"
               color="primary"
               disabled={loading || !symbol}
+              sx={{ minWidth: 150 }}
             >
               {loading ? <CircularProgress size={24} /> : 'Get Prediction'}
             </Button>
