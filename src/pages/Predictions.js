@@ -102,3 +102,18 @@ function Predictions() {
 }
 
 export default Predictions;
+cd D:\
+
+git clone https://github.com/cato818/prognome-frontend.git temp-frontend
+
+xcopy /E /Y D:\crypto-predictor\frontend\src\* D:\temp-frontend\src\
+
+cd D:\temp-frontend
+
+git status
+
+git add .
+
+git commit -m "Fix prediction page error handling and UI"
+
+git push origin main
