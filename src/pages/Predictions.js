@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -7,48 +7,55 @@ import {
   Button,
   Box,
   CircularProgress,
-  Alert
+  Alert,
+  Snackbar
 } from '@mui/material';
 import axios from 'axios';
 
 function Predictions() {
-  const [symbol, setSymbol] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [prediction, setPrediction] = useState(null);
+  const [formData, setFormData] = useState({
+    symbol: '',
+    loading: false,
+    prediction: null
+  });
   const [error, setError] = useState(null);
 
-  const handleSubmit = async (e) => {
+  const handleChange = useCallback((e) => {
+    setFormData(prev => ({
+      ...prev,
+      symbol: e.target.value
+    }));
+  }, []);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (!formData.symbol) return;
+
+    setFormData(prev => ({ ...prev, loading: true, prediction: null }));
     setError(null);
-    setPrediction(null);
 
     try {
-      console.log('Making API request to:', `${process.env.REACT_APP_API_URL}/predict`);
-      
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/predict`, {
-        symbol: symbol.toUpperCase()
+        symbol: formData.symbol.toUpperCase()
       });
-      
-      console.log('API Response:', response.data);
-      setPrediction(response.data);
+      setFormData(prev => ({
+        ...prev,
+        loading: false,
+        prediction: response.data
+      }));
     } catch (err) {
-      console.error('API Error:', err);
-      setError(
-        err.response?.data?.detail || 
-        err.message || 
-        'An error occurred while making the prediction'
-      );
-    } finally {
-      setLoading(false);
+      console.error('Error making prediction:', err);
+      setError(err.response?.data?.detail || 'An error occurred while making the prediction');
+      setFormData(prev => ({ ...prev, loading: false }));
     }
-  };
+  }, [formData.symbol]);
 
-  // Debug: Mostrar las variables de entorno (sin mostrar valores sensibles)
-  console.log('API URL configured:', process.env.REACT_APP_API_URL ? 'Yes' : 'No');
+  const handleCloseError = useCallback(() => {
+    setError(null);
+  }, []);
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Cryptocurrency Price Predictions
@@ -58,42 +65,54 @@ function Predictions() {
           <TextField
             fullWidth
             label="Cryptocurrency Symbol (e.g., BTC)"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
+            value={formData.symbol}
+            onChange={handleChange}
             margin="normal"
             required
-            disabled={loading}
+            disabled={formData.loading}
           />
-          <Box sx={{ mt: 2 }}>
+          <Box sx={{ mt: 2, mb: 2 }}>
             <Button
               type="submit"
               variant="contained"
               color="primary"
-              disabled={loading || !symbol}
-              sx={{ minWidth: 150 }}
+              disabled={formData.loading || !formData.symbol}
+              sx={{ minWidth: 120 }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Get Prediction'}
+              {formData.loading ? <CircularProgress size={24} /> : 'Get Prediction'}
             </Button>
           </Box>
         </form>
 
-        {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
+        <Snackbar
+          open={Boolean(error)}
+          autoHideDuration={6000}
+          onClose={handleCloseError}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert 
+            elevation={6} 
+            variant="filled" 
+            severity="error" 
+            onClose={handleCloseError}
+          >
             {error}
           </Alert>
-        )}
+        </Snackbar>
 
-        {prediction && (
+        {formData.prediction && (
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6" gutterBottom>
               Prediction Results
             </Typography>
-            <Typography variant="body1">
-              Predicted price for {symbol.toUpperCase()}: ${prediction.predicted_price}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Confidence: {(prediction.confidence * 100).toFixed(2)}%
-            </Typography>
+            <Paper elevation={2} sx={{ p: 3, bgcolor: 'background.paper' }}>
+              <Typography variant="body1" gutterBottom>
+                Predicted price for {formData.symbol.toUpperCase()}: ${formData.prediction.predicted_price}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Confidence: {(formData.prediction.confidence * 100).toFixed(2)}%
+              </Typography>
+            </Paper>
           </Box>
         )}
       </Paper>
