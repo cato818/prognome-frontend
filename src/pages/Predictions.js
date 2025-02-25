@@ -9,13 +9,13 @@ import {
   CircularProgress
 } from '@mui/material';
 import axios from 'axios';
-import ErrorSnackbar from '../components/ErrorSnackbar';
+import ErrorMessage from '../components/ErrorMessage';
 
 function Predictions() {
   const [symbol, setSymbol] = useState('');
   const [loading, setLoading] = useState(false);
   const [prediction, setPrediction] = useState(null);
-  const [error, setError] = useState({ show: false, message: '' });
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +23,7 @@ function Predictions() {
 
     setLoading(true);
     setPrediction(null);
-    setError({ show: false, message: '' });
+    setErrorMessage('');
 
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/predict`, {
@@ -32,17 +32,10 @@ function Predictions() {
       setPrediction(response.data);
     } catch (err) {
       console.error('Error making prediction:', err);
-      setError({
-        show: true,
-        message: err.response?.data?.detail || 'An error occurred while making the prediction'
-      });
+      setErrorMessage(err.response?.data?.detail || 'An error occurred while making the prediction');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCloseError = () => {
-    setError({ show: false, message: '' });
   };
 
   return (
@@ -51,6 +44,8 @@ function Predictions() {
         <Typography variant="h4" component="h1" gutterBottom>
           Cryptocurrency Price Predictions
         </Typography>
+        
+        <ErrorMessage message={errorMessage} />
         
         <form onSubmit={handleSubmit}>
           <TextField
@@ -74,12 +69,6 @@ function Predictions() {
             </Button>
           </Box>
         </form>
-
-        <ErrorSnackbar 
-          open={error.show}
-          message={error.message}
-          onClose={handleCloseError}
-        />
 
         {prediction && (
           <Box sx={{ mt: 4 }}>
