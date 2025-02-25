@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -7,77 +7,94 @@ import {
   Button,
   Box,
   CircularProgress,
-  Alert,
-  Snackbar
+  Alert
 } from '@mui/material';
 import axios from 'axios';
 
 function Predictions() {
-  const [symbol, setSymbol] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const [error, setError] = useState(null);
+  const [formState, setFormState] = useState({
+    symbol: '',
+    loading: false,
+    prediction: null,
+    error: null
+  });
+  
+  const abortControllerRef = useRef(null);
   const mounted = useRef(true);
 
+  // Cleanup function
   useEffect(() => {
     return () => {
       mounted.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, []);
 
-  const updateState = (updates) => {
+  const updateFormState = useCallback((updates) => {
     if (mounted.current) {
-      Object.entries(updates).forEach(([key, value]) => {
-        switch(key) {
-          case 'loading':
-            setLoading(value);
-            break;
-          case 'prediction':
-            setPrediction(value);
-            break;
-          case 'error':
-            setError(value);
-            break;
-          default:
-            break;
-        }
-      });
+      setFormState(prev => ({
+        ...prev,
+        ...updates
+      }));
     }
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSymbolChange = useCallback((e) => {
+    updateFormState({ symbol: e.target.value });
+  }, [updateFormState]);
+
+  const handleCloseError = useCallback(() => {
+    updateFormState({ error: null });
+  }, [updateFormState]);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    if (!symbol || !mounted.current) return;
+    if (!formState.symbol || !mounted.current) return;
 
-    updateState({
+    // Cancel any ongoing request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+
+    updateFormState({
       loading: true,
       prediction: null,
       error: null
     });
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/predict`, {
-        symbol: symbol.toUpperCase()
-      });
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/predict`,
+        { symbol: formState.symbol.toUpperCase() },
+        { signal: abortControllerRef.current.signal }
+      );
       
-      updateState({
-        loading: false,
-        prediction: response.data
-      });
+      if (mounted.current) {
+        updateFormState({
+          loading: false,
+          prediction: response.data
+        });
+      }
     } catch (err) {
-      console.error('Error making prediction:', err);
-      updateState({
-        loading: false,
-        error: err.response?.data?.detail || 'An error occurred while making the prediction'
-      });
-    }
-  };
+      if (err.name === 'AbortError') {
+        console.log('Request cancelled');
+        return;
+      }
 
-  const handleCloseError = () => {
-    if (mounted.current) {
-      setError(null);
+      console.error('Error making prediction:', err);
+      if (mounted.current) {
+        updateFormState({
+          loading: false,
+          error: err.response?.data?.detail || 'An error occurred while making the prediction'
+        });
+      }
     }
-  };
+  }, [formState.symbol, updateFormState]);
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
@@ -90,44 +107,44 @@ function Predictions() {
           <TextField
             fullWidth
             label="Cryptocurrency Symbol (e.g., BTC)"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
+            value={formState.symbol}
+            onChange={handleSymbolChange}
             margin="normal"
             required
-            disabled={loading}
+            disabled={formState.loading}
           />
           <Box sx={{ mt: 2, mb: 2 }}>
             <Button
               type="submit"
               variant="contained"
               color="primary"
-              disabled={loading || !symbol}
+              disabled={formState.loading || !formState.symbol}
               sx={{ minWidth: 120 }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Get Prediction'}
+              {formState.loading ? <CircularProgress size={24} /> : 'Get Prediction'}
             </Button>
           </Box>
         </form>
 
-        {error && (
+        {formState.error && (
           <Box sx={{ mt: 2, mb: 2 }}>
             <Alert severity="error" onClose={handleCloseError}>
-              {error}
+              {formState.error}
             </Alert>
           </Box>
         )}
 
-        {prediction && (
+        {formState.prediction && (
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6" gutterBottom>
               Prediction Results
             </Typography>
             <Paper elevation={2} sx={{ p: 3, bgcolor: 'background.paper' }}>
               <Typography variant="body1" gutterBottom>
-                Predicted price for {symbol.toUpperCase()}: ${prediction.predicted_price}
+                Predicted price for {formState.symbol.toUpperCase()}: ${formState.prediction.predicted_price}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Confidence: {(prediction.confidence * 100).toFixed(2)}%
+                Confidence: {(formState.prediction.confidence * 100).toFixed(2)}%
               </Typography>
             </Paper>
           </Box>
