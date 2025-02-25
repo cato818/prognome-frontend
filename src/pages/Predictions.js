@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -6,35 +6,76 @@ import {
   TextField,
   Button,
   Box,
-  CircularProgress
+  CircularProgress,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import axios from 'axios';
-import ErrorMessage from '../components/ErrorMessage';
 
 function Predictions() {
   const [symbol, setSymbol] = useState('');
   const [loading, setLoading] = useState(false);
   const [prediction, setPrediction] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [error, setError] = useState(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const updateState = (updates) => {
+    if (mounted.current) {
+      Object.entries(updates).forEach(([key, value]) => {
+        switch(key) {
+          case 'loading':
+            setLoading(value);
+            break;
+          case 'prediction':
+            setPrediction(value);
+            break;
+          case 'error':
+            setError(value);
+            break;
+          default:
+            break;
+        }
+      });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!symbol) return;
+    if (!symbol || !mounted.current) return;
 
-    setLoading(true);
-    setPrediction(null);
-    setErrorMessage('');
+    updateState({
+      loading: true,
+      prediction: null,
+      error: null
+    });
 
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/predict`, {
         symbol: symbol.toUpperCase()
       });
-      setPrediction(response.data);
+      
+      updateState({
+        loading: false,
+        prediction: response.data
+      });
     } catch (err) {
       console.error('Error making prediction:', err);
-      setErrorMessage(err.response?.data?.detail || 'An error occurred while making the prediction');
-    } finally {
-      setLoading(false);
+      updateState({
+        loading: false,
+        error: err.response?.data?.detail || 'An error occurred while making the prediction'
+      });
+    }
+  };
+
+  const handleCloseError = () => {
+    if (mounted.current) {
+      setError(null);
     }
   };
 
@@ -44,8 +85,6 @@ function Predictions() {
         <Typography variant="h4" component="h1" gutterBottom>
           Cryptocurrency Price Predictions
         </Typography>
-        
-        <ErrorMessage message={errorMessage} />
         
         <form onSubmit={handleSubmit}>
           <TextField
@@ -69,6 +108,14 @@ function Predictions() {
             </Button>
           </Box>
         </form>
+
+        {error && (
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <Alert severity="error" onClose={handleCloseError}>
+              {error}
+            </Alert>
+          </Box>
+        )}
 
         {prediction && (
           <Box sx={{ mt: 4 }}>
